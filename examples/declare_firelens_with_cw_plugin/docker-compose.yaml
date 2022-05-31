@@ -1,0 +1,20 @@
+---
+# Simple to define awsfirelens as log driver and cloudwatch as destination
+# Compose-X Version: 0.21+
+
+version: "3.8"
+services:
+  random-logs:
+    image: chentex/random-logger:latest
+    command: [ "1000", "5000", "42" ]
+    deploy:
+      labels:
+        ecs.task.family: web
+        ecs.depends.condition: START
+    logging:
+      driver: awsfirelens
+      options:
+        Name: cloudwatch
+        auto_create_group: true
+        log_group_name: a-custom-name
+        log_stream_prefix: random-logs

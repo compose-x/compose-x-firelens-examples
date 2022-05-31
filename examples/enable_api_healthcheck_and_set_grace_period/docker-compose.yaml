@@ -1,0 +1,24 @@
+---
+# Simple to define awsfirelens as log driver and firehose as destination
+# Compose-X Version: 0.21+
+
+version: "3.8"
+services:
+  random-logs:
+    image: chentex/random-logger:latest
+    command: [ "1000", "5000", "42" ]
+    deploy:
+      labels:
+        ecs.task.family: web
+        ecs.depends.condition: START
+    logging:
+      driver: awsfirelens
+      options:
+        Name: kinesis_firehose
+        delivery_stream: an-existing-strem
+        region: us-east-1
+    x-logging:
+      FireLens: # We only need to set these two values
+        Advanced:
+          GracePeriod: 45
+          EnableApiHeathCheck: true

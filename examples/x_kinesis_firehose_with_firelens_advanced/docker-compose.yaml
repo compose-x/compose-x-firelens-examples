@@ -1,0 +1,112 @@
+---
+# Compose-X Version: 0.21+
+
+version: "3.8"
+services:
+  web:
+    ports:
+      - target: 80
+        protocol: tcp
+    deploy:
+      labels:
+        ecs.compute.platform: EXTERNAL
+    image: nginx
+    logging:
+      driver: awsfirelens
+      options:
+        Name: cloudwatch
+    environment:
+      APP_VERSION: test
+    x-logging:
+      FireLens:
+        Advanced:
+          SourceFile: examples/x_kinesis_firehose_with_firelens_advanced/nginx-parsing.conf
+          EnableApiHeathCheck: true
+          ComposeXManagedAwsDestinations:
+              - delivery_stream: x-kinesis_firehose::stream-to-s3-direct-put
+          GracePeriod: 60
+          EnvironmentVariables:
+            APP_VERSION: test
+
+  random-logs:
+    image: chentex/random-logger:latest
+    command: ["1000", "5000", "42"]
+    deploy:
+      labels:
+        ecs.task.family: web
+        ecs.depends.condition: SUCCESS
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: a-custom-name
+    x-logging:
+      FireLens:
+        Shorthands:
+          ReplaceAwsLogs: true
+
+  web2:
+    deploy:
+      labels:
+        ecs.compute.platform: EXTERNAL
+    ports:
+      - target: 80
+        protocol: tcp
+    image: nginx
+    logging:
+      driver: awsfirelens
+      options:
+        delivery_stream: x-kinesis_firehose::lookup-stream-to-s3-direct-put
+
+x-cluster:
+  Lookup:
+    ClusterName: ANewCluster
+
+x-kinesis_firehose:
+  stream-to-s3-direct-put:
+    Properties:
+      DeliveryStreamName: tester-partitioning-delimiter
+      DeliveryStreamType: DirectPut
+      DeliveryStreamEncryptionConfigurationInput:
+        KeyARN: x-kms::stream-encryption-key
+      ExtendedS3DestinationConfiguration:
+        BucketARN: x-s3::delivery-stream-output-bucket
+        BufferingHints:
+          SizeInMBs: 64
+          IntervalInSeconds: 60
+        CompressionFormat: UNCOMPRESSED
+
+  lookup-stream-to-s3-direct-put:
+    Lookup:
+      Tags:
+        - ForLookupTesting: "true"
+        - s3-has-aws-cmk: "true"
+        - with-aws-cmk: "true"
+        - Name: "PUT-S3-g6B0t"
+    Services:
+      ad-hoc-testing:
+        Access: Producer
+
+
+x-s3:
+  delivery-stream-output-bucket:
+    Properties:
+      AccessControl: BucketOwnerFullControl
+      ObjectLockEnabled: False
+      PublicAccessBlockConfiguration:
+          BlockPublicAcls: True
+          BlockPublicPolicy: True
+          IgnorePublicAcls: True
+          RestrictPublicBuckets: True
+    MacroParameters:
+      ExpandRegionToBucket: True
+      ExpandAccountIdToBucket: True
+      BucketPolicy:
+        PredefinedBucketPolicies:
+          - enforceSecureConnection
+
+x-kms:
+  stream-encryption-key:
+    Lookup:
+      Tags:
+        - usage: unknown
+        - ForLookup: "true"

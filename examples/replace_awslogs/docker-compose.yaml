@@ -1,0 +1,21 @@
+---
+# Simple example replacing awslogs settings with FireLens
+# Compose-X Version: 0.21+
+
+version: "3.8"
+services:
+  random-logs:
+    image: chentex/random-logger:latest
+    command: ["1000", "5000", "42"]
+    deploy:
+      labels:
+        ecs.task.family: web
+        ecs.depends.condition: START
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: a-custom-name
+    x-logging:
+      FireLens:
+        Shorthands:
+          ReplaceAwsLogs: true

@@ -1,0 +1,22 @@
+---
+# Simple to define awsfirelens as log driver and firehose as destination
+# Compose-X Version: 0.21+
+
+version: "3.8"
+services:
+  frontend:
+    image: nginx
+    deploy:
+      labels:
+        ecs.task.family: web
+    logging:
+      driver: awsfirelens
+      options:
+        Name: cloudwatch
+        log_group_name: an-existing-stream
+        log_group_prefix: frontend
+    x-logging:
+      FireLens: # We only need to set these two values
+        Advanced:
+          EnableApiHeathCheck: true
+          SourceFile: examples/enable_nginx_parser_using_source_file/nginx-parsing.conf

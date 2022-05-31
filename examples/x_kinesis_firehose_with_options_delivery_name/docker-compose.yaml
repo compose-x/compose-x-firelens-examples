@@ -1,0 +1,77 @@
+---
+# Simple to define awsfirelens as log driver and firehose as destination
+# Compose-X Version: 0.21+
+
+version: "3.8"
+services:
+  random-logs:
+    image: chentex/random-logger:latest
+    command: [ "1000", "5000", "42" ]
+    deploy:
+      labels:
+        ecs.task.family: web
+        ecs.depends.condition: START
+    logging:
+      driver: awsfirelens
+      options:
+        delivery_stream: x-kinesis_firehose::lookup-stream-to-s3-direct-put
+        Name: kinesis_firehose
+
+  more-logs:
+    image: chentex/random-logger:latest
+    command: [ "1000", "5000", "42" ]
+    logging:
+      driver: awsfirelens
+      options:
+        delivery_stream: x-kinesis_firehose::stream-to-s3-direct-put
+        Name: kinesis_firehose
+
+
+x-kinesis_firehose:
+  stream-to-s3-direct-put:
+    Properties:
+      DeliveryStreamType: DirectPut
+      DeliveryStreamEncryptionConfigurationInput:
+        KeyARN: x-kms::stream-encryption-key
+      ExtendedS3DestinationConfiguration:
+        BucketARN: x-s3::delivery-stream-output-bucket
+        BufferingHints:
+          SizeInMBs: 64
+          IntervalInSeconds: 60
+        CompressionFormat: UNCOMPRESSED
+
+  lookup-stream-to-s3-direct-put:
+    Lookup:
+      Tags:
+        - ForLookupTesting: "true"
+        - s3-has-aws-cmk: "true"
+        - with-aws-cmk: "true"
+        - Name: "PUT-S3-g6B0t"
+    Services:
+      ad-hoc-testing:
+        Access: Producer
+
+
+x-s3:
+  delivery-stream-output-bucket:
+    Properties:
+      AccessControl: BucketOwnerFullControl
+      ObjectLockEnabled: False
+      PublicAccessBlockConfiguration:
+          BlockPublicAcls: True
+          BlockPublicPolicy: True
+          IgnorePublicAcls: True
+          RestrictPublicBuckets: True
+    MacroParameters:
+      ExpandRegionToBucket: True
+      ExpandAccountIdToBucket: True
+      BucketPolicy:
+        PredefinedBucketPolicies:
+          - enforceSecureConnection
+
+x-kms:
+  stream-encryption-key:
+    Lookup:
+      Tags:
+        - usage: unknown
+        - ForLookup: "true"
