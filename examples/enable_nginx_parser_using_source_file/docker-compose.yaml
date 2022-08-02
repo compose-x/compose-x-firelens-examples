@@ -14,7 +14,7 @@ services:
       options:
         Name: cloudwatch
         log_group_name: an-existing-stream
-        log_group_prefix: frontend
+        log_stream_prefix: frontend
     x-logging:
       FireLens: # We only need to set these two values
         Advanced:
